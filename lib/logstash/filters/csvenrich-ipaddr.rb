@@ -58,10 +58,18 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
 
         #Get IP from the specified field and check it's actually an IP
         event_ip_field = event.get(@ip_field)
-        if !IPAddr.valid?(event_ip_field)
+        
+        begin
+            IPAddr.new(event_ip_field)
+        rescue
             event.tag('csvenrich_invalid_ip_field')
             return
         end
+        
+        #if !IPAddress.valid?(event_ip_field)
+        #    event.tag('csvenrich_invalid_ip_field')
+        #    return
+        #end
         
         if !event_ip_field.nil?
             #Go through every row of the CSV
