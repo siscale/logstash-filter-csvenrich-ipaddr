@@ -3,12 +3,68 @@
 This is a plugin for [Logstash](https://github.com/elastic/logstash).
 
 It is fully free and fully open source. The license is Apache 2.0, meaning you are pretty much free to use it however you want in whatever way.
+
 ## Plugin settings ##
 
     file_path   - path to CSV file
     ip_column   - CSV column index containing IP's or IP ranges
     ip_field    - event field containg IP to match with the CSV
     map_field   - select and rename columns from the CSV that you want to include in the event
+
+## CSV Example ##
+
+Suppose we have the following CSV table which contains information associated to IP's and/or IP ranges:
+
+| Code  | Name   | Priority  | Ip                                            |
+|-------|--------|-----------|-----------------------------------------------|
+| 12754 | Bogdan | Low       |  192.168.0.0/24 192.168.1.0/24 192.167.10.20  |
+| 22132 | Walter | Very High |  192.168.2.0/24 192.168.3.0/24 192.168.4.0/24 |
+| 63433 | Jesse  | High      | 192.168.5.0/24                                |
+| 16567 | Skylar | Medium    | 10.100.10.100                                 |
+| 96032 | Hank   | High      | 192.168.6.0/24                                |
+
+Suppose we have an index with events of this form:
+
+```json
+{
+    "user" : {
+        "ip" : "192.168.2.17"
+    }
+}
+```
+
+We would like to enrich incoming events with information from this CSV based on the IP in the "user.ip" field.
+
+We would then configure the plugin like this:
+
+```
+filter {
+    csvenrich-ipaddr {
+        file_path => "/path/to/CSV/file.csv"
+        ip_column => 3
+        ip_field => "[user][ip]"
+        map_field => { "Code" => "[user][code]" "Name" => "[user][name]" "Priority" => "[user][priority]" }
+    }
+}
+```
+Then the previous event would be indexed like this:
+
+```json
+{
+    "user" : {
+        "ip" : "192.168.2.17",
+        "code" : "22132",
+        "name" : "Walter",
+        "priority" : "Very High"
+    }
+}
+```
+
+The IP "192.168.2.17" is in the range "192.168.2.0/24" found on the second line of the CSV (excluding the headers).
+
+The plugin will look at the provided "ip_field" and try to match it with any of the IP's or IP ranges in the "ip_column", which in this case is 3 (note that column indexing starts from 0, which in this case it's the "Code" column).
+
+The IP column can contain any number of IP's or IP ranges per row.
 
 ## Documentation
 
