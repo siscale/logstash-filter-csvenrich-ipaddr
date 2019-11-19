@@ -1,6 +1,6 @@
 # encoding: utf-8
 require "logstash/filters/base"
-require "ipaddr.rb"
+require "ipaddr"
 require "csv"
 
 class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
