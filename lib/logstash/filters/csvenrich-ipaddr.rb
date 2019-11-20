@@ -105,6 +105,7 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                         end
                     rescue
                         #Just continue if there's an invalid IP or IP range in the CSV
+                        print "Invalid IP found in CSV " + @file_path + ": " + row[@ip_column].to_s
                         next
                     end
                 end               
