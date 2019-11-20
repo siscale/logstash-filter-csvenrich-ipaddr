@@ -1,6 +1,6 @@
 # encoding: utf-8
 require "logstash/filters/base"
-require "ipaddr.rb"
+require "ipaddr"
 require "csv"
 
 class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
@@ -21,9 +21,6 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
     
     #Refresh interval
     config :refresh_interval, :validate => :number, :default => 300
-    
-    #Character separating the IP ranges - obsolete
-    #config :range_split_char, :validate => :string, :default => "\n"
 
     public
     def register
@@ -61,25 +58,29 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
 
         #Get IP from the specified field and check it's actually an IP
         event_ip_field = event.get(@ip_field)
+        
         begin
             IPAddr.new(event_ip_field)
         rescue
             event.tag('csvenrich_invalid_ip_field')
             return
         end
-
+        
+        #if !IPAddress.valid?(event_ip_field)
+        #    event.tag('csvenrich_invalid_ip_field')
+        #    return
+        #end
+        
         if !event_ip_field.nil?
             #Go through every row of the CSV
             @file_csv.each do |row|
                 if !row[@ip_column].nil?
-                    #Split the ranges, for each range check if the IP is in range
-                    #array_ranges = row[@ip_column].split(@range_split_char)
                     #Scan for IPs and IP ranges
                     array_ranges = row[@ip_column].scan(@ip_pattern)
                     array_ranges.each do |ip_range|
                         #Add row info to the event
                         begin
-                            if (IPAddr.new(ip_range.strip) === IPAddr.new(event_ip_field))
+                            if IPAddr.new(ip_range.strip).include?(IPAddr.new(event_ip_field))
                                 @map_field.each do |src_field, dest_field|
                                     val = row[src_field]
                                     if !val.nil?
