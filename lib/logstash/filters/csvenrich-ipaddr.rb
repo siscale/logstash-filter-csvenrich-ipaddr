@@ -40,7 +40,24 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
     public
     def reload(raise_exception=false)
         #Load and parse the CSV file. Some CSV's have some hidden characters at the beggining (\xEF\xBB\xBF) which must be removed
-        @file_csv = CSV.parse(File.read(@file_path, encoding: "utf-8").sub!("\xEF\xBB\xBF",''), headers: true, skip_blanks: true, encoding: "utf-8")
+        file_csv = CSV.parse(File.read(@file_path, encoding: "utf-8").sub!("\xEF\xBB\xBF",''), headers: true, skip_blanks: true, encoding: "utf-8")
+        #Break every row into multiple rows based on the IP column for easier searching
+        @new_csv = CSV.generate do |csv|
+            #Copy old headers
+            csv << file_csv.headers
+            file_csv.each do |row|
+                #Create rows for every IP or IP range found in the IP column
+                if !row[@ip_column].nil?
+                    array_ranges = row[@ip_column].scan(@ip_pattern)
+                    array_ranges.each do |ip_range|
+                        new_row = row
+                        new_row[@ip_column] = ip_range
+                        csv << new_row.fields
+                    end
+                end
+            end
+        end
+        @new_csv = CSV.parse(@new_csv, headers: true, skip_blanks: true, encoding: "utf-8")
     end
 
     public
@@ -58,7 +75,7 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
 
         #Get IP from the specified field and check it's actually an IP
         event_ip_field = event.get(@ip_field)
-        
+       
         begin
             IPAddr.new(event_ip_field)
         rescue
@@ -73,26 +90,23 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
         
         if !event_ip_field.nil?
             #Go through every row of the CSV
-            @file_csv.each do |row|
+            @new_csv.each do |row|
                 if !row[@ip_column].nil?
-                    #Scan for IPs and IP ranges
-                    array_ranges = row[@ip_column].scan(@ip_pattern)
-                    array_ranges.each do |ip_range|
-                        #Add row info to the event
-                        begin
-                            if IPAddr.new(ip_range.strip).include?(IPAddr.new(event_ip_field))
-                                @map_field.each do |src_field, dest_field|
-                                    val = row[src_field]
-                                    if !val.nil?
-                                        event.set(dest_field,val)
-                                    end
+                    begin
+                        #Check if the current row IP matches with the event IP
+                        if IPAddr.new(row[@ip_column]).include?(IPAddr.new(event_ip_field))
+                            @map_field.each do |src_field, dest_field|
+                                val = row[src_field]
+                                if !val.nil?
+                                    event.set(dest_field,val)
                                 end
-                                filter_matched(event)    
                             end
-                        rescue
-                            #Just continue if there's an invalid IP or IP range in the CSV
-                            next
+                            filter_matched(event)    
                         end
+                    rescue
+                        #Just continue if there's an invalid IP or IP range in the CSV
+                        print "Invalid IP found in CSV " + @file_path + ": " + row[@ip_column].to_s
+                        next
                     end
                 end               
             end
