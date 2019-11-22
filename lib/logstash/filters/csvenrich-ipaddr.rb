@@ -2,13 +2,14 @@
 require "logstash/filters/base"
 require "ipaddr"
 require "csv"
+require "digest/sha1"
 
 class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
 
     config_name "csvenrich-ipaddr"
 
     #Path to the CSV file
-    config :file_path, :validate => :string, :required => true
+    config :file_path, :validate => :path, :required => true
     
     #Column containing the IP's (index starting from 0)
     config :ip_column, :validate => :string, :required => true
@@ -24,25 +25,23 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
 
     public
     def register
-        # Add instance variables
+        #IP pattern used to break-up the CSV into multiple rows if there's more than one IP on a row
         @ip_pattern = /\d{,3}\.\d{,3}\.\d{,3}\.\d{,3}\/?\d{,2}/
-        
-        if @file_path
-            if File.zero?(@file_path)
-                raise "CSV is empty"
-            end
-            @next_refresh = Time.now + @refresh_interval
-            raise_exception = true
-            reload(raise_exception)
+        @next_refresh = Time.now + @refresh_interval
+        if not File.size?(@file_path)
+            raise "CSV file " + @file_path + " is empty or doesn't exist!"
         end
+        reload
     end # def register
 
     public
-    def reload(raise_exception=false)
+    def reload  
+        #Save the file hash to compare at the next reload
+        @csv_hash = Digest::SHA1.hexdigest(File.read(@file_path)) 
         #Load and parse the CSV file. Some CSV's have some hidden characters at the beggining (\xEF\xBB\xBF) which must be removed
         file_csv = CSV.parse(File.read(@file_path, encoding: "utf-8").sub!("\xEF\xBB\xBF",''), headers: true, skip_blanks: true, encoding: "utf-8")
-        #Break every row into multiple rows based on the IP column for easier searching
-        @new_csv = CSV.generate do |csv|
+        #Break every row into multiple rows based on the IP column for easier searching - generates a string
+        generated_csv = CSV.generate do |csv|
             #Copy old headers
             csv << file_csv.headers
             file_csv.each do |row|
@@ -57,37 +56,36 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                 end
             end
         end
-        @new_csv = CSV.parse(@new_csv, headers: true, skip_blanks: true, encoding: "utf-8")
+        #Parse the generated string into a CSV object
+        @new_csv = CSV.parse(generated_csv, headers: true, skip_blanks: true, encoding: "utf-8")
     end
 
     public
     def filter(event)
-        if @file_path
-            if @next_refresh < Time.now
-                reload
-                @next_refresh = Time.now + @refresh_interval
-                print "Reloading CSV file: " + @file_path + "\n"
-                @logger.debug? and @logger.debug("Reloading CSV file: " + @file_path + "\n")
+        #Reload the CSV file if the refresh interval has passed, and the CSV file actually changed
+        if @next_refresh < Time.now
+            if not File.size?(@file_path)
+                raise "CSV file " + @file_path + " is empty or doesn't exist!"
             end
+            if @csv_hash !=  Digest::SHA1.hexdigest(File.read(@file_path))
+                print "CSV file changed. Reloading: " + @file_path + "\n"
+                @logger.debug? and @logger.debug("CSV file changed. Reloading: " + @file_path + "\n")
+                reload
+            end
+            @next_refresh = Time.now + @refresh_interval
         end
 
         return unless filter?(event)
 
         #Get IP from the specified field and check it's actually an IP
         event_ip_field = event.get(@ip_field)
-       
         begin
             IPAddr.new(event_ip_field)
         rescue
             event.tag('csvenrich_invalid_ip_field')
             return
         end
-        
-        #if !IPAddress.valid?(event_ip_field)
-        #    event.tag('csvenrich_invalid_ip_field')
-        #    return
-        #end
-        
+
         if !event_ip_field.nil?
             #Go through every row of the CSV
             @new_csv.each do |row|
@@ -105,7 +103,7 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                         end
                     rescue
                         #Just continue if there's an invalid IP or IP range in the CSV
-                        print "Invalid IP found in CSV " + @file_path + ": " + row[@ip_column].to_s
+                        print "Invalid IP " + row[@ip_column].to_s + " found in CSV file " + @file_path + "\n"
                         next
                     end
                 end               
