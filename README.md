@@ -6,10 +6,11 @@ It is fully free and fully open source. The license is Apache 2.0, meaning you a
 
 ## Plugin settings ##
 
-    file_path   - path to CSV file
-    ip_column   - CSV column index containing IP's or IP ranges
-    ip_field    - event field containg IP to match with the CSV
-    map_field   - select and rename columns from the CSV that you want to include in the event
+    file_path        - path to CSV file
+    ip_column        - CSV column index containing IP's or IP ranges
+    ip_field         - event field containg IP to match with the CSV
+    map_field        - select and rename columns from the CSV that you want to include in the event
+    refresh_interval - Time interval in seconds between checking if CSV has been modified (Default: 300)
 
 ## CSV Example ##
 
