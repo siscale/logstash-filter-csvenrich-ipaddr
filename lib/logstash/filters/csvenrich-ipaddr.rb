@@ -68,8 +68,7 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                 raise "CSV file " + @file_path + " is empty or doesn't exist!"
             end
             if @csv_hash !=  Digest::SHA1.hexdigest(File.read(@file_path))
-                print "CSV file changed. Reloading: " + @file_path + "\n"
-                @logger.debug? and @logger.debug("CSV file changed. Reloading: " + @file_path + "\n")
+                @logger.info? and @logger.info("CSV file changed. Reloading:" + @file_path)
                 reload
             end
             @next_refresh = Time.now + @refresh_interval
@@ -103,7 +102,7 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                         end
                     rescue
                         #Just continue if there's an invalid IP or IP range in the CSV
-                        print "Invalid IP " + row[@ip_column].to_s + " found in CSV file " + @file_path + "\n"
+                        @logger.warn? and @logger.warn("Invalid IP " + row[@ip_column].to_s + " found in CSV file " + @file_path)
                         next
                     end
                 end               
