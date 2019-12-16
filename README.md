@@ -63,7 +63,7 @@ Then the previous event would be indexed like this:
 
 The IP "192.168.2.17" is in the range "192.168.2.0/24" found on the second line of the CSV (excluding the headers).
 
-The plugin will look at the provided "ip_field" and try to match it with any of the IP's or IP ranges in the "ip_column", which in this case is 3 (note that column indexing starts from 0, which in this case it's the "Code" column). Instead of the column number, the column header name can also be used (in this case, it would be `ip_column => "Ip"`).
+The plugin will look at the provided `ip_field` and try to match it with any of the IP's or IP ranges in the `ip_column`, which in this case is 3 (note that column indexing starts from 0, which in this case it's the `Code` column). Instead of the column number, the column header name can also be used (in this case, it would be `ip_column => "Ip"`).
 
 The IP column can contain any number of IP's or IP ranges per row.
 
