@@ -36,10 +36,11 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
 
     public
     def reload  
+        file_content = File.read(@file_path)
         #Save the file hash to compare at the next reload
-        @csv_hash = Digest::SHA1.hexdigest(File.read(@file_path)) 
-        #Load and parse the CSV file. Some CSV's have some hidden characters at the beggining (\xEF\xBB\xBF) which must be removed
-        file_csv = CSV.parse(File.read(@file_path, encoding: "utf-8").sub!("\xEF\xBB\xBF",''), headers: true, skip_blanks: true, encoding: "utf-8")
+        @csv_hash = Digest::SHA1.hexdigest(file_content)
+        #Load and parse the CSV file
+        file_csv = CSV.parse(file_content, headers: true, skip_blanks: true, encoding: "utf-8")
         #Break every row into multiple rows based on the IP column for easier searching - generates a string
         generated_csv = CSV.generate do |csv|
             #Copy old headers
