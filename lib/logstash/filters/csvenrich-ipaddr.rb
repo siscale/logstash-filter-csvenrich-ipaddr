@@ -27,6 +27,8 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
     def register
         #IP pattern used to break-up the CSV into multiple rows if there's more than one IP on a row
         @ip_pattern = /\d{,3}\.\d{,3}\.\d{,3}\.\d{,3}\/?\d{,2}/
+        #Used to exclude the quad-zero route, if present in the csv (it's too general)
+        @ip_all = IPAddr.new("0.0.0.0/0").to_range
         @next_refresh = Time.now + @refresh_interval
         if not File.size?(@file_path)
             raise "CSV file " + @file_path + " is empty or doesn't exist!"
@@ -50,9 +52,12 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                 if !row[@ip_column].nil?
                     array_ranges = row[@ip_column].scan(@ip_pattern)
                     array_ranges.each do |ip_range|
-                        new_row = row
-                        new_row[@ip_column] = ip_range
-                        csv << new_row.fields
+                        #Exclude the quad-zero route
+                        if @ip_all != IPAddr.new(ip_range).to_range
+                            new_row = row
+                            new_row[@ip_column] = ip_range
+                            csv << new_row.fields
+                        end
                     end
                 end
             end
