@@ -57,6 +57,8 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                             new_row = row
                             new_row[@ip_column] = ip_range
                             csv << new_row.fields
+                        else
+                            @logger.warn? and @logger.warn("Found quad-zero range in CSV file: " + @file_path + ". Ignoring.")
                         end
                     end
                 end
