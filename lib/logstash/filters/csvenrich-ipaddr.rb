@@ -61,11 +61,13 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
         @ip_hashmap = Hash.new
         @csv_hashmap = Hash.new
         global_ip_id = 0
+        duplicate_ip_total = 0
         duplicate_ip = 0
-         
+        
         #Go through CSV, find IP's and expand
         CSV.foreach(@file_path, headers: true, skip_blanks: true, encoding: "utf-8") do |row|
             @csv_hashmap[global_ip_id] = row.to_hash
+            duplicate_ip = 0
             if !row[@ip_column].nil?
                 #Scan for possible IP ranges (a CSV row can contain multiple IP's or IP ranges)
                 array_ranges = row[@ip_column].scan(@ip_pattern)
@@ -86,20 +88,23 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                                 #If the IP is already hashed, log a warning
                                 else
                                     duplicate_ip += 1
-                                    @logger.warn? and @logger.warn("CSV line (" + row.to_hash.to_s + ") contains IP " + ip.to_s +  + " already hashed at line (" + @csv_hashmap[@ip_hashmap[ip.to_s]].to_s + ")")
                                 end
                             end
                         else 
-                            @logger.warn? and @logger.warn("Found an IP range '" + current_ip_range.to_s + "' with a too broad netmask of " + current_ip_range.cidr_mask.to_s + " (default: " + @minimum_mask.to_s + ") in CSV file " + @file_path)
+                            @logger.warn? and @logger.warn("Found an IP range '" + current_ip_range.to_s + "' with a too broad netmask of " + current_ip_range.cidr_mask.to_s + " (current minimum: " + @minimum_mask.to_s + ") in CSV file " + @file_path)
                         end
-                    end 
+                    end      
                 end
                 #Increment id for the next CSV row
                 global_ip_id += 1
             end
+            if duplicate_ip > 0
+                @logger.warn? and @logger.warn("CSV line (" + row.to_hash.to_s + ") contains " + duplicate_ip.to_s +  + " duplicate IP's from CSV file " + @file_path)
+                duplicate_ip_total += duplicate_ip
+            end 
         end
-        if duplicate_ip > 0
-            @logger.warn? and @logger.warn("Found " + duplicate_ip.to_s + " duplicate IP's in CSV file " + @file_path)  
+        if duplicate_ip_total > 0
+            @logger.warn? and @logger.warn("Found " + duplicate_ip_total.to_s + " duplicate IP's in CSV file " + @file_path)  
         end
     end
 
