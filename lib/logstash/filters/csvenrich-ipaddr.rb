@@ -37,7 +37,7 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
     #Refresh interval
     config :refresh_interval, :validate => :number, :default => 300
 
-    #Minimum subnet mask to expand (small masks can generate million of IP's)
+    #Minimum subnet mask to expand (small masks can generate millions of IP's)
     config :minimum_mask, :validate => :number, :default => 19
 
     public
@@ -98,11 +98,13 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                 #Increment id for the next CSV row
                 global_ip_id += 1
             end
+            #If the IP is already hashed, log a warning
             if duplicate_ip > 0
                 @logger.warn? and @logger.warn("CSV line (" + row.to_hash.to_s + ") contains " + duplicate_ip.to_s +  + " duplicate IP's from CSV file " + @file_path)
                 duplicate_ip_total += duplicate_ip
             end 
         end
+        #If the IP is already hashed, log a warning
         if duplicate_ip_total > 0
             @logger.warn? and @logger.warn("Found " + duplicate_ip_total.to_s + " duplicate IP's in CSV file " + @file_path)  
         end
