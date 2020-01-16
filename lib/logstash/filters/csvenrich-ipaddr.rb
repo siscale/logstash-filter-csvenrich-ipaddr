@@ -40,6 +40,9 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
     #Minimum subnet mask to expand (small masks can generate millions of IP's)
     config :minimum_mask, :validate => :number, :default => 19
 
+    #Path to CSV errors logging file, leave blank to disable logging
+    config :csv_errors_path, :validate => :string
+
     public
     def register
         #IP pattern used to scan for IP's in the source column
@@ -63,6 +66,9 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
         global_ip_id = 0
         duplicate_ip_total = 0
         duplicate_ip = 0
+        notallowed_ip = 0
+        csv_duplicates = ""
+        csv_notallowed = ""
         
         #Go through CSV, find IP's and expand
         CSV.foreach(@file_path, headers: true, skip_blanks: true, encoding: "utf-8") do |row|
@@ -90,8 +96,10 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
                                     duplicate_ip += 1
                                 end
                             end
-                        else 
-                            @logger.warn? and @logger.warn("Found an IP range '" + current_ip_range.to_s + "' with a too broad netmask of " + current_ip_range.cidr_mask.to_s + " (current minimum: " + @minimum_mask.to_s + ") in CSV file " + @file_path)
+                        else
+                            #If the IP range is too broad, log a warning
+                            csv_notallowed += row.to_s + "-> contains an IP range with netmask " + current_ip_range.cidr_mask.to_s + "\n"
+                            notallowed_ip += 1
                         end
                     end      
                 end
@@ -100,14 +108,34 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
             end
             #If the IP is already hashed, log a warning
             if duplicate_ip > 0
-                @logger.warn? and @logger.warn("CSV line (" + row.to_hash.to_s + ") contains " + duplicate_ip.to_s +  + " duplicate IP's from CSV file " + @file_path)
+                csv_duplicates += row.to_s + "-> contains " + duplicate_ip.to_s +  + " duplicate IPs.\n"
                 duplicate_ip_total += duplicate_ip
             end 
         end
-        #If the IP is already hashed, log a warning
-        if duplicate_ip_total > 0
-            @logger.warn? and @logger.warn("Found " + duplicate_ip_total.to_s + " duplicate IP's in CSV file " + @file_path)  
+ 
+        if duplicate_ip_total > 0 or notallowed_ip > 0
+            begin 
+                if @csv_errors_path
+                    open(@csv_errors_path, 'a') { |f|
+                        f << "Time generated: " + Time.now.inspect.to_s + ". CSV file: " + @file_path + "\n" 
+                        f << "Found " + notallowed_ip.to_s + " IP ranges with too broad netmasks (minimum mask: " + minimum_mask.to_s + ")\n"
+                        f << "Found " + duplicate_ip_total.to_s + " duplicate IP's.\n"
+                        f << "* Lines with too broad netmasks (minimum mask: " + minimum_mask.to_s + ")\n"
+                        f << csv_notallowed 
+                        f << "* Lines with duplicate IPs: \n"
+                        f << csv_duplicates
+                        f << "\n\n"
+                    }
+                    @logger.info? and @logger.info("Logging CSV conflicts to '" + @csv_errors_path.to_s + "'")
+                    csv_notallowed = ""
+                    csv_duplicates = ""
+                end
+            rescue 
+                @logger.error? and @logger.error("Error when opening CSV errors logging file '" + @csv_errors_path.to_s + "' (Does logstash have permission to access the path?)")
+            end
         end
+        @logger.info? and @logger.info("Found " + notallowed_ip.to_s + " IP ranges with too broad netmasks (minimum mask: " + minimum_mask.to_s + ") in CSV file '" + @file_path + "'")
+        @logger.info? and @logger.info("Found " + duplicate_ip_total.to_s + " duplicate IP's in CSV file '" + @file_path + "'")  
     end
 
     public
@@ -116,7 +144,7 @@ class LogStash::Filters::CsvenrichIpaddr < LogStash::Filters::Base
         #If the CSV file is missing but a copy is saved into memory, continue processing events but log a warning
         if @next_refresh < Time.now
             if not File.size?(@file_path)
-                @logger.warn? and @logger.info("CSV file '" + @file_path + "' no longer exists, but a processed copy is already stored in memory. The plugin will continue to use the stored copy, which will be lost when Logstash is restarted!")
+                @logger.warn? and @logger.info("CSV file '" + @file_path + "' is empty or no longer exists, but a processed copy is already stored in memory. The plugin will continue to use the stored copy, which will be lost when Logstash is restarted!")
             elsif @csv_hash !=  Digest::SHA1.hexdigest(File.read(@file_path))
                 @logger.info? and @logger.info("CSV file changed. Reloading:" + @file_path)
                 reload
