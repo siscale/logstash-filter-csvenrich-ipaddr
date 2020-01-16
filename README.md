@@ -12,6 +12,7 @@ It is fully free and fully open source. The license is Apache 2.0, meaning you a
     map_field        - select and rename columns from the CSV that you want to include in the event
     refresh_interval - time interval in seconds between checking if CSV has been modified (Default: 300)
     minimum_mask     - the smallest mask that the plugin will try to expand (Default: 19)
+    csv_errors_path  - path for logging CSV errors. Leave blank to disable.
 
 ## CSV Example ##
 
