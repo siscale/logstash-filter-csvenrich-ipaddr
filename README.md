@@ -10,7 +10,9 @@ It is fully free and fully open source. The license is Apache 2.0, meaning you a
     ip_column        - CSV column index/column name containing IP's or IP ranges
     ip_field         - event field containg IP to match with the CSV
     map_field        - select and rename columns from the CSV that you want to include in the event
-    refresh_interval - Time interval in seconds between checking if CSV has been modified (Default: 300)
+    refresh_interval - time interval in seconds between checking if CSV has been modified (Default: 300)
+    minimum_mask     - the smallest mask that the plugin will try to expand (Default: 19)
+    csv_errors_path  - path for logging CSV errors. Leave blank to disable.
 
 ## CSV Example ##
 
@@ -42,7 +44,7 @@ We would then configure the plugin like this:
 filter {
     csvenrich-ipaddr {
         file_path => "/path/to/CSV/file.csv"
-        ip_column => 3
+        ip_column => "Ip"
         ip_field => "[user][ip]"
         map_field => { "Code" => "[user][code]" "Name" => "[user][name]" "Priority" => "[user][priority]" }
     }
@@ -63,7 +65,7 @@ Then the previous event would be indexed like this:
 
 The IP "192.168.2.17" is in the range "192.168.2.0/24" found on the second line of the CSV (excluding the headers).
 
-The plugin will look at the provided `ip_field` and try to match it with any of the IP's or IP ranges in the `ip_column`, which in this case is 3 (note that column indexing starts from 0, which in this case it's the `Code` column). Instead of the column number, the column header name can also be used (in this case, it would be `ip_column => "Ip"`).
+The plugin will look at the provided `ip_field` and try to match it with any of the IP's or IP ranges in the `ip_column`, which in this case is `Ip`. Instead of the column name, the column index can also be used (in this case, it would be `ip_column => 3` - note that column indexing starts from 0).
 
 The IP column can contain any number of IP's or IP ranges per row.
 
